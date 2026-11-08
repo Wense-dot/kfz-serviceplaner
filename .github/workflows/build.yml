@@ -1,10 +1,12 @@
-name: Build iOS App
+name: Build and Deploy App
 
-on: [push]
+on:
+  push:
+    branches: [ main ]
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Code auschecken
@@ -21,8 +23,21 @@ jobs:
       - name: Web-App bauen (React)
         run: npm run build
 
-      - name: Capacitor iOS hinzufügen
-        run: npx cap add ios
+      - name: Artifact für GitHub Pages vorbereiten
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: ./build
 
-      - name: Capacitor Dateien synchronisieren
-        run: npx cap copy
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deployment zu GitHub Pages starten
+        id: deployment
+        uses: actions/deploy-pages@v2
