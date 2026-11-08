@@ -1,13 +1,12 @@
-name: Build and Deploy App
+name: Deploy React App
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Code auschecken
         uses: actions/checkout@v3
@@ -20,24 +19,10 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm install
 
-      - name: Web-App bauen (React)
+      - name: App bauen
         run: npm run build
 
-      - name: Artifact für GitHub Pages vorbereiten
-        uses: actions/upload-pages-artifact@v2
+      - name: Zu GitHub Pages hochladen
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          path: ./build
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deployment zu GitHub Pages starten
-        id: deployment
-        uses: actions/deploy-pages@v2
+          folder: build
