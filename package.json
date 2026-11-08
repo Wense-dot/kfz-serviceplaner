@@ -1,5 +1,6 @@
 {
   "name": "kfz-serviceplaner",
+  "homepage": "https://wense-dot.github.io/kfz-serviceplaner",
   "version": "1.0.0",
   "private": true,
   "scripts": {
