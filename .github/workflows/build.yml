@@ -1,0 +1,28 @@
+name: Build iOS App
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Code auschecken
+        uses: actions/checkout@v3
+
+      - name: Node.js einrichten
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Abhängigkeiten installieren
+        run: npm install
+
+      - name: Web-App bauen (React)
+        run: npm run build
+
+      - name: Capacitor iOS hinzufügen
+        run: npx cap add ios
+
+      - name: Capacitor Dateien synchronisieren
+        run: npx cap copy
