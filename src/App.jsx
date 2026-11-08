@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Car, Wrench, Calendar, Plus, Trash2, Edit2, Search, 
-  CheckCircle, AlertTriangle, Camera, FileText, ChevronRight, X 
+  Car, Wrench, Plus, Trash2, Calendar, ShieldCheck, 
+  Search, Fuel, Bell, AlertTriangle, CheckCircle, FileText 
 } from 'lucide-react';
 
 export default function App() {
-  // Lade Daten aus dem lokalen Speicher oder nutze Standardwerte
   const [vehicles, setVehicles] = useState(() => {
     const saved = localStorage.getItem('kfz_vehicles');
     return saved ? JSON.parse(saved) : [
@@ -13,421 +12,491 @@ export default function App() {
         id: '1',
         name: 'BMW 320d',
         plate: 'M-AB 1234',
+        tuev: '2026-08',
         mileage: 145000,
-        tuev: '2027-05',
-        image: null
+        services: [
+          { id: '101', title: 'Ölwechsel & Filter', date: '2025-06-15', mileage: 140000, cost: 180, notes: '5W30 ÖL' }
+        ]
       }
     ];
   });
 
-  const [services, setServices] = useState(() => {
-    const saved = localStorage.getItem('kfz_services');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: '1',
-        vehicleId: '1',
-        title: 'Ölwechsel & Filter',
-        category: 'Wartung',
-        date: '2025-06-15',
-        mileage: 140000,
-        cost: 180,
-        notes: 'Mit 5W30 Öl und Originalfilter.',
-        image: null
-      }
-    ];
-  });
-
-  const [activeTab, setActiveTab] = useState('vehicles');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedVehicle, setSelectedVehicle] = useState(null);
-
-  // Modal-Zustände
+  const [activeTab, setActiveTab] = useState('garage'); // 'garage' | 'tuev' | 'services'
+  const [selectedVehicleId, setSelectedVehicleId] = useState(vehicles[0]?.id || null);
+  const [searchTerm, setSearchTerm] = useState('');
+  
+  // Modals
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
 
-  // Formular-Felder Fahrzeug
-  const [vehicleForm, setVehicleForm] = useState({ name: '', plate: '', mileage: '', tuev: '', image: null });
-  
-  // Formular-Felder Service
-  const [serviceForm, setServiceForm] = useState({ 
-    title: '', category: 'Wartung', date: new Date().toISOString().split('T')[0], mileage: '', cost: '', notes: '', image: null 
-  });
+  // Form States - Fahrzeug (Nur Kennzeichen ist Pflichtfeld!)
+  const [newVehicle, setNewVehicle] = useState({ name: '', plate: '', tuev: '', mileage: '' });
+  // Form States - Service
+  const [newService, setNewService] = useState({ title: '', date: '', mileage: '', cost: '', notes: '' });
 
-  // Daten automatisch speichern
   useEffect(() => {
     localStorage.setItem('kfz_vehicles', JSON.stringify(vehicles));
   }, [vehicles]);
 
-  useEffect(() => {
-    localStorage.setItem('kfz_services', JSON.stringify(services));
-  }, [services]);
+  const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId);
 
-  // Hilfsfunktion: Sonderzeichen für Suche ignorieren
-  const normalizeString = (str) => {
-    return str ? str.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
-  };
-
-  const handleSaveVehicle = (e) => {
+  // Fahrzeug hinzufügen
+  const handleAddVehicle = (e) => {
     e.preventDefault();
-    const newVehicle = {
+    if (!newVehicle.plate.trim()) return; // Nur Kennzeichen ist Pflicht!
+
+    const created = {
       id: Date.now().toString(),
-      ...vehicleForm,
-      mileage: Number(vehicleForm.mileage)
+      name: newVehicle.name.trim() || 'Fahrzeug ohne Name',
+      plate: newVehicle.plate.trim().toUpperCase(),
+      tuev: newVehicle.tuev || '',
+      mileage: Number(newVehicle.mileage) || 0,
+      services: []
     };
-    setVehicles([...vehicles, newVehicle]);
-    setVehicleForm({ name: '', plate: '', mileage: '', tuev: '', image: null });
+
+    setVehicles([...vehicles, created]);
+    setSelectedVehicleId(created.id);
+    setNewVehicle({ name: '', plate: '', tuev: '', mileage: '' });
     setShowVehicleModal(false);
   };
 
-  const handleSaveService = (e) => {
+  // Fahrzeug löschen
+  const handleDeleteVehicle = (id) => {
+    if (window.confirm('Fahrzeug wirklich löschen?')) {
+      const updated = vehicles.filter(v => v.id !== id);
+      setVehicles(updated);
+      if (selectedVehicleId === id) {
+        setSelectedVehicleId(updated[0]?.id || null);
+      }
+    }
+  };
+
+  // Service eintagen
+  const handleAddService = (e) => {
     e.preventDefault();
-    const newService = {
+    if (!selectedVehicleId || !newService.title.trim()) return;
+
+    const entry = {
       id: Date.now().toString(),
-      vehicleId: selectedVehicle.id,
-      ...serviceForm,
-      mileage: Number(serviceForm.mileage),
-      cost: Number(serviceForm.cost)
+      title: newService.title,
+      date: newService.date || new Date().toISOString().split('T')[0],
+      mileage: Number(newService.mileage) || selectedVehicle.mileage,
+      cost: Number(newService.cost) || 0,
+      notes: newService.notes
     };
-    setServices([newService, ...services]);
-    setServiceForm({ title: '', category: 'Wartung', date: new Date().toISOString().split('T')[0], mileage: '', cost: '', notes: '', image: null });
+
+    setVehicles(vehicles.map(v => {
+      if (v.id === selectedVehicleId) {
+        return {
+          ...v,
+          mileage: Math.max(v.mileage, entry.mileage),
+          services: [entry, ...v.services]
+        };
+      }
+      return v;
+    }));
+
+    setNewService({ title: '', date: '', mileage: '', cost: '', notes: '' });
     setShowServiceModal(false);
   };
 
-  const deleteVehicle = (id) => {
-    if (confirm('Fahrzeug und alle dazugehörigen Einträge wirklich löschen?')) {
-      setVehicles(vehicles.filter(v => v.id !== id));
-      setServices(services.filter(s => s.vehicleId !== id));
-      if (selectedVehicle?.id === id) setSelectedVehicle(null);
-    }
+  // Service löschen
+  const handleDeleteService = (serviceId) => {
+    setVehicles(vehicles.map(v => {
+      if (v.id === selectedVehicleId) {
+        return {
+          ...v,
+          services: v.services.filter(s => s.id !== serviceId)
+        };
+      }
+      return v;
+    }));
   };
 
-  const deleteService = (id) => {
-    if (confirm('Diesen Service-Eintrag löschen?')) {
-      setServices(services.filter(s => s.id !== id));
-    }
-  };
-
-  const handleImageUpload = (e, formType) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (formType === 'vehicle') {
-          setVehicleForm(prev => ({ ...prev, image: reader.result }));
-        } else {
-          setServiceForm(prev => ({ ...prev, image: reader.result }));
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Gefilterte Fahrzeuge anhand der Suche
-  const filteredVehicles = vehicles.filter(v => {
-    const query = normalizeString(searchQuery);
-    return normalizeString(v.name).includes(query) || normalizeString(v.plate).includes(query);
-  });
+  // Filtern für die Suche
+  const filteredVehicles = vehicles.filter(v => 
+    v.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    v.plate.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 flex flex-col font-sans">
-      {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-20 shadow-md">
-        <div className="max-w-4xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSelectedVehicle(null)}>
-            <Car className="w-8 h-8 text-blue-500" />
-            <h1 className="text-xl font-bold tracking-wide">Kfz-Serviceplaner</h1>
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans pb-12">
+      {/* Navigation / Header */}
+      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-20">
+        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Car className="w-7 h-7 text-blue-500" />
+            <h1 className="font-bold text-lg tracking-wide text-white">Kfz-Serviceplaner</h1>
           </div>
           
-          {/* Suchleiste */}
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Suchen (ignoriert Sonderzeichen)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:border-blue-500"
-            />
+          <div className="flex items-center space-x-2">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="bg-slate-800 border border-slate-700 rounded-lg pl-9 pr-3 py-1.5 text-sm text-slate-200 focus:outline-none focus:border-blue-500 w-36 sm:w-48"
+              />
+            </div>
+            <button
+              onClick={() => setShowVehicleModal(true)}
+              className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Fahrzeug</span>
+            </button>
           </div>
+        </div>
+
+        {/* Tab Bar */}
+        <div className="max-w-5xl mx-auto px-4 flex space-x-6 border-t border-slate-800/60 text-sm font-medium">
+          <button
+            onClick={() => setActiveTab('garage')}
+            className={`py-2.5 flex items-center space-x-2 border-b-2 transition ${
+              activeTab === 'garage' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Car className="w-4 h-4" />
+            <span>Garage ({vehicles.length})</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('tuev')}
+            className={`py-2.5 flex items-center space-x-2 border-b-2 transition ${
+              activeTab === 'tuev' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4" />
+            <span>TÜV-Planer</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('services')}
+            className={`py-2.5 flex items-center space-x-2 border-b-2 transition ${
+              activeTab === 'services' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Wrench className="w-4 h-4" />
+            <span>Historie & Kosten</span>
+          </button>
         </div>
       </header>
 
       {/* Hauptinhalt */}
-      <main className="flex-1 max-w-4xl w-full mx-auto p-4 pb-24">
-        {!selectedVehicle ? (
-          /* Ansicht: Fahrzeugliste */
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-lg font-semibold text-gray-200">Meine Fahrzeuge</h2>
-              <button 
-                onClick={() => setShowVehicleModal(true)}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-lg transition-all"
-              >
-                <Plus className="w-4 h-4" /> Fahrzeug hinzufügen
-              </button>
+      <main className="max-w-5xl mx-auto px-4 pt-6">
+
+        {/* TAB 1: GARAGE */}
+        {activeTab === 'garage' && (
+          <div className="space-y-6">
+            {/* Fahrzeugauswahl Horizontal */}
+            <div className="flex space-x-3 overflow-x-auto pb-2">
+              {filteredVehicles.map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => setSelectedVehicleId(v.id)}
+                  className={`flex-shrink-0 px-4 py-3 rounded-xl border text-left transition w-48 ${
+                    selectedVehicleId === v.id
+                      ? 'bg-blue-600/10 border-blue-500 text-white'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
+                  }`}
+                >
+                  <div className="font-semibold text-base truncate">{v.name}</div>
+                  <div className="text-xs text-blue-400 font-mono mt-1">{v.plate}</div>
+                </button>
+              ))}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredVehicles.map(vehicle => {
-                const vehicleServices = services.filter(s => s.vehicleId === vehicle.id);
-                return (
-                  <div 
-                    key={vehicle.id}
-                    onClick={() => setSelectedVehicle(vehicle)}
-                    className="bg-gray-800 border border-gray-700 rounded-2xl p-5 hover:border-blue-500 cursor-pointer transition-all shadow-md flex flex-col justify-between"
+            {/* Details des gewählten Fahrzeugs */}
+            {selectedVehicle ? (
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white">{selectedVehicle.name}</h2>
+                    <span className="inline-block bg-slate-800 border border-slate-700 text-blue-400 font-mono px-2.5 py-1 rounded-md text-sm mt-2">
+                      {selectedVehicle.plate}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteVehicle(selectedVehicle.id)}
+                    className="text-slate-500 hover:text-red-400 p-2 rounded-lg hover:bg-slate-800 transition"
+                    title="Fahrzeug löschen"
                   >
-                    <div>
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex items-center gap-3">
-                          {vehicle.image ? (
-                            <img src={vehicle.image} alt="" className="w-12 h-12 rounded-xl object-cover border border-gray-600" />
-                          ) : (
-                            <div className="w-12 h-12 bg-gray-700 rounded-xl flex items-center justify-center text-blue-400">
-                              <Car className="w-6 h-6" />
-                            </div>
-                          )}
-                          <div>
-                            <h3 className="font-bold text-lg text-white">{vehicle.name}</h3>
-                            <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-md font-mono">{vehicle.plate}</span>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); deleteVehicle(vehicle.id); }}
-                          className="text-gray-500 hover:text-red-400 p-1"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
 
-                      <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 my-4 bg-gray-900/50 p-3 rounded-xl">
-                        <div>
-                          <span className="text-gray-500 block text-xs">Kilometerstand</span>
-                          <span className="font-semibold">{vehicle.mileage.toLocaleString()} km</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500 block text-xs">TÜV Ablauf</span>
-                          <span className="font-semibold flex items-center gap-1">
-                            <Calendar className="w-3.5 h-3.5 text-blue-400" /> {vehicle.tuev || 'Unbekannt'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center text-xs text-gray-400 pt-2 border-t border-gray-700/50">
-                      <span>{vehicleServices.length} Service-Einträge</span>
-                      <span className="text-blue-400 flex items-center gap-1 font-medium">Öffnen <ChevronRight className="w-3.5 h-3.5" /></span>
+                {/* Kennzahlen */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                    <div className="text-xs text-slate-400 font-medium">Kilometerstand</div>
+                    <div className="text-xl font-bold text-white mt-1">
+                      {selectedVehicle.mileage.toLocaleString()} km
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          /* Ansicht: Fahrzeugdetails & Historie */
-          <div>
-            <button 
-              onClick={() => setSelectedVehicle(null)}
-              className="text-sm text-blue-400 hover:underline mb-4 flex items-center gap-1"
-            >
-              ← Zurück zur Übersicht
-            </button>
-
-            <div className="bg-gray-800 border border-gray-700 rounded-2xl p-6 mb-6 shadow-md flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div className="flex items-center gap-4">
-                {selectedVehicle.image ? (
-                  <img src={selectedVehicle.image} alt="" className="w-16 h-16 rounded-2xl object-cover border border-gray-600" />
-                ) : (
-                  <div className="w-16 h-16 bg-gray-700 rounded-2xl flex items-center justify-center text-blue-400">
-                    <Car className="w-8 h-8" />
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                    <div className="text-xs text-slate-400 font-medium">Nächster TÜV</div>
+                    <div className="text-xl font-bold text-white mt-1">
+                      {selectedVehicle.tuev || 'Nicht hinterlegt'}
+                    </div>
                   </div>
-                )}
+                  <div className="bg-slate-950 border border-slate-800 p-4 rounded-xl">
+                    <div className="text-xs text-slate-400 font-medium">Wartungen gesamt</div>
+                    <div className="text-xl font-bold text-white mt-1">
+                      {selectedVehicle.services.length} Einträge
+                    </div>
+                  </div>
+                </div>
+
+                {/* Service Historie Auszug */}
                 <div>
-                  <h2 className="text-2xl font-bold text-white">{selectedVehicle.name}</h2>
-                  <p className="text-sm text-gray-400 font-mono mt-0.5">{selectedVehicle.plate} • {selectedVehicle.mileage.toLocaleString()} km</p>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-semibold text-lg text-white">Letzte Wartungen</h3>
+                    <button
+                      onClick={() => setShowServiceModal(true)}
+                      className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg flex items-center space-x-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Eintrag hinzufügen</span>
+                    </button>
+                  </div>
+
+                  {selectedVehicle.services.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500 text-sm">
+                      Noch keine Service-Einträge vorhanden.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedVehicle.services.map(s => (
+                        <div key={s.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-start">
+                          <div>
+                            <div className="font-semibold text-white">{s.title}</div>
+                            <div className="text-xs text-slate-400 mt-1 space-x-3">
+                              <span>{s.date}</span>
+                              <span>•</span>
+                              <span>{s.mileage.toLocaleString()} km</span>
+                              {s.cost > 0 && <><span>•</span><span className="text-emerald-400">{s.cost} €</span></>}
+                            </div>
+                            {s.notes && <div className="text-xs text-slate-400 mt-2 bg-slate-900 p-2 rounded border border-slate-800">{s.notes}</div>}
+                          </div>
+                          <button
+                            onClick={() => handleDeleteService(s.id)}
+                            className="text-slate-600 hover:text-red-400 p-1"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              <button 
-                onClick={() => setShowServiceModal(true)}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 shadow-lg transition-all w-full sm:w-auto justify-center"
-              >
-                <Plus className="w-4 h-4" /> Service eintragen
-              </button>
-            </div>
-
-            <h3 className="text-lg font-semibold text-gray-200 mb-4">Wartungshistorie</h3>
-
-            {services.filter(s => s.vehicleId === selectedVehicle.id).length === 0 ? (
-              <div className="text-center py-12 bg-gray-800/50 border border-dashed border-gray-700 rounded-2xl text-gray-400">
-                <Wrench className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                <p>Noch keine Service-Einträge vorhanden.</p>
-              </div>
             ) : (
-              <div className="space-y-4">
-                {services
-                  .filter(s => s.vehicleId === selectedVehicle.id)
-                  .sort((a, b) => new Date(b.date) - new Date(a.date))
-                  .map(service => (
-                    <div key={service.id} className="bg-gray-800 border border-gray-700 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                      <div className="flex items-start gap-3">
-                        <div className="bg-blue-500/10 text-blue-400 p-2.5 rounded-xl mt-1">
-                          <Wrench className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-white">{service.title}</h4>
-                            <span className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded-md">{service.category}</span>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-1">{service.date} • {service.mileage.toLocaleString()} km • {service.cost} €</p>
-                          {service.notes && <p className="text-sm text-gray-300 mt-2 bg-gray-900/40 p-2.5 rounded-lg">{service.notes}</p>}
-                          {service.image && (
-                            <div className="mt-3">
-                              <img src={service.image} alt="Beleg" className="w-24 h-24 rounded-lg object-cover border border-gray-700" />
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <button 
-                        onClick={() => deleteService(service.id)}
-                        className="text-gray-500 hover:text-red-400 p-2 self-end sm:self-center"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+              <div className="text-center py-16 text-slate-500">
+                Kein Fahrzeug ausgewählt oder vorhanden.
               </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 2: TÜV PLANER */}
+        {activeTab === 'tuev' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+            <h2 className="text-xl font-bold text-white mb-4 flex items-center space-x-2">
+              <ShieldCheck className="w-6 h-6 text-blue-500" />
+              <span>TÜV & Hauptuntersuchungen</span>
+            </h2>
+            <div className="space-y-3">
+              {vehicles.map(v => (
+                <div key={v.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
+                  <div>
+                    <div className="font-semibold text-white">{v.name} ({v.plate})</div>
+                    <div className="text-xs text-slate-400 mt-0.5">TÜV fällig im: <span className="text-blue-400 font-mono">{v.tuev || 'Kein Datum'}</span></div>
+                  </div>
+                  <span className="px-3 py-1 text-xs rounded-full bg-slate-800 text-slate-300 border border-slate-700">
+                    {v.tuev ? `Fällig: ${v.tuev}` : 'Nicht eingetragen'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 3: KOSTEN & HISTORIE */}
+        {activeTab === 'services' && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+            <h2 className="text-xl font-bold text-white mb-2 flex items-center space-x-2">
+              <Wrench className="w-6 h-6 text-blue-500" />
+              <span>Gesamte Service-Historie</span>
+            </h2>
+            {vehicles.flatMap(v => v.services.map(s => ({ ...s, vehicleName: v.name, plate: v.plate }))).length === 0 ? (
+              <div className="text-slate-500 py-6 text-center">Keine Wartungseinträge in allen Fahrzeugen.</div>
+            ) : (
+              vehicles.flatMap(v => v.services.map(s => ({ ...s, vehicleName: v.name, plate: v.plate }))).map(item => (
+                <div key={item.id} className="bg-slate-950 border border-slate-800 p-4 rounded-xl flex justify-between items-center">
+                  <div>
+                    <span className="text-xs bg-slate-800 text-blue-400 px-2 py-0.5 rounded font-mono mr-2">{item.plate}</span>
+                    <span className="font-semibold text-white">{item.title}</span>
+                    <div className="text-xs text-slate-400 mt-1">{item.date} • {item.mileage.toLocaleString()} km</div>
+                  </div>
+                  <div className="text-emerald-400 font-bold">{item.cost > 0 ? `${item.cost} €` : '-'}</div>
+                </div>
+              ))
             )}
           </div>
         )}
       </main>
 
-      {/* Modal: Neues Fahrzeug */}
+      {/* MODAL: NEUES FAHRZEUG (Nur Kennzeichen ist Pflicht!) */}
       {showVehicleModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Fahrzeug hinzufügen</h3>
-              <button onClick={() => setShowVehicleModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleSaveVehicle} className="space-y-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-lg font-bold text-white">Neues Fahrzeug anlegen</h3>
+            <form onSubmit={handleAddVehicle} className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Modell / Name</label>
-                <input 
-                  type="text" required placeholder="z.B. Golf 7 GTI"
-                  value={vehicleForm.name} onChange={e => setVehicleForm({...vehicleForm, name: e.target.value})}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                <label className="block text-xs font-medium text-slate-400 mb-1">
+                  Amtliches Kennzeichen <span className="text-red-400">* (Pflichtfeld)</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="z.B. M-AB 1234"
+                  value={newVehicle.plate}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, plate: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Kennzeichen</label>
-                <input 
-                  type="text" required placeholder="z.B. B-XY 1234"
-                  value={vehicleForm.plate} onChange={e => setVehicleForm({...vehicleForm, plate: e.target.value})}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                <label className="block text-xs font-medium text-slate-400 mb-1">Fahrzeugname (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="z.B. BMW 320d"
+                  value={newVehicle.name}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, name: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Kilometerstand</label>
-                  <input 
-                    type="number" required placeholder="z.B. 120000"
-                    value={vehicleForm.mileage} onChange={e => setVehicleForm({...vehicleForm, mileage: e.target.value})}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">TÜV Ablauf (Monat)</label>
-                  <input 
-                    type="month" required
-                    value={vehicleForm.tuev} onChange={e => setVehicleForm({...vehicleForm, tuev: e.target.value})}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
+
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Foto (optional)</label>
-                <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'vehicle')} className="text-xs text-gray-400" />
+                <label className="block text-xs font-medium text-slate-400 mb-1">Nächster TÜV (Optional)</label>
+                <input
+                  type="month"
+                  value={newVehicle.tuev}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, tuev: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                />
               </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-xl text-sm transition-all shadow-lg mt-2">
-                Speichern
-              </button>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Aktueller Kilometerstand (Optional)</label>
+                <input
+                  type="number"
+                  placeholder="z.B. 145000"
+                  value={newVehicle.mileage}
+                  onChange={(e) => setNewVehicle({ ...newVehicle, mileage: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowVehicleModal(false)}
+                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm py-2 rounded-lg font-medium"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 bg-blue-600 hover:bg-blue-500 text-white text-sm py-2 rounded-lg font-medium"
+                >
+                  Speichern
+                </button>
+              </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Modal: Neuer Service */}
+      {/* MODAL: NEUE WARTUNG */}
       {showServiceModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 border border-gray-700 rounded-2xl w-full max-w-md p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Service eintragen</h3>
-              <button onClick={() => setShowServiceModal(false)} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-            <form onSubmit={handleSaveService} className="space-y-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md space-y-4">
+            <h3 className="text-lg font-bold text-white">Wartung eintragen</h3>
+            <form onSubmit={handleAddService} className="space-y-3">
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Tätigkeit / Titel</label>
-                <input 
-                  type="text" required placeholder="z.B. Bremsen vorne neu"
-                  value={serviceForm.title} onChange={e => setServiceForm({...serviceForm, title: e.target.value})}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                <label className="block text-xs font-medium text-slate-400 mb-1">Wartung / Reparatur *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="z.B. Ölwechsel & Filter"
+                  value={newService.title}
+                  onChange={(e) => setNewService({ ...newService, title: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Kategorie</label>
-                  <select 
-                    value={serviceForm.category} onChange={e => setServiceForm({...serviceForm, category: e.target.value})}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="Wartung">Wartung</option>
-                    <option value="Reparatur">Reparatur</option>
-                    <option value="Inspektion">Inspektion</option>
-                    <option value="Sonstiges">Sonstiges</option>
-                  </select>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Datum</label>
+                  <input
+                    type="date"
+                    value={newService.date}
+                    onChange={(e) => setNewService({ ...newService, date: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  />
                 </div>
                 <div>
-                  <label className="block text-xs text-gray-400 mb-1">Datum</label>
-                  <input 
-                    type="date" required
-                    value={serviceForm.date} onChange={e => setServiceForm({...serviceForm, date: e.target.value})}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Kosten (€)</label>
+                  <input
+                    type="number"
+                    placeholder="180"
+                    value={newService.cost}
+                    onChange={(e) => setNewService({ ...newService, cost: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Km-Stand bei Service</label>
-                  <input 
-                    type="number" required placeholder="z.B. 125000"
-                    value={serviceForm.mileage} onChange={e => setServiceForm({...serviceForm, mileage: e.target.value})}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs text-gray-400 mb-1">Kosten (€)</label>
-                  <input 
-                    type="number" placeholder="z.B. 250"
-                    value={serviceForm.cost} onChange={e => setServiceForm({...serviceForm, cost: e.target.value})}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
+
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Notizen / Details</label>
-                <textarea 
-                  rows="2" placeholder="Was wurde gemacht..."
-                  value={serviceForm.notes} onChange={e => setServiceForm({...serviceForm, notes: e.target.value})}
-                  className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 resize-none"
+                <label className="block text-xs font-medium text-slate-400 mb-1">Kilometerstand</label>
+                <input
+                  type="number"
+                  placeholder="140000"
+                  value={newService.mileage}
+                  onChange={(e) => setNewService({ ...newService, mileage: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
               <div>
-                <label className="block text-xs text-gray-400 mb-1">Foto / Beleg (optional)</label>
-                <input type="file" accept="image/*" onChange={e => handleImageUpload(e, 'service')} className="text-xs text-gray-400" />
+                <label className="block text-xs font-medium text-slate-400 mb-1">Notizen / Teile</label>
+                <textarea
+                  rows="2"
+                  placeholder="z.B. 5W30 ÖL verwendet"
+                  value={newService.notes}
+                  onChange={(e) => setNewService({ ...newService, notes: e.target.value })}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                />
               </div>
-              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-xl text-sm transition-all shadow-lg mt-2">
-                Hinzufügen
-              </button>
+
+              <div className="flex space-x-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowServiceModal(false)}
+                  className="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm py-2 rounded-lg font-medium"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 bg-blue-600 hover:bg-blue-500 text-white text-sm py-2 rounded-lg font-medium"
+                >
+                  Eintragen
+                </button>
+              </div>
             </form>
           </div>
         </div>
