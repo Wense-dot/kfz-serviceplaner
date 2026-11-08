@@ -1,0 +1,9 @@
+{
+  "appId": "com.kfzplaner.app",
+  "appName": "Kfz Serviceplaner",
+  "webDir": "build",
+  "bundledWebRuntime": false,
+  "ios": {
+    "contentInset": "always"
+  }
+}
